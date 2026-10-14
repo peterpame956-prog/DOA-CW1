@@ -1,0 +1,62 @@
+name: Docker Build and Push
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build_prod:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push Production Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/doa-cw1:prod
+
+  build_dev:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push Development Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/doa-cw1:dev
+
+  test:
+    runs-on: ubuntu-latest
+    needs: [build_prod, build_dev]
+    steps:
+      - name: Verify Images and Test Service
+        run: |
+          docker pull ${{ secrets.DOCKER_USERNAME }}/doa-cw1:prod
+          docker pull ${{ secrets.DOCKER_USERNAME }}/doa-cw1:dev
+          echo "Both images pulled successfully"
+
+          docker run -d -p 5000:5000 --name test-prod ${{ secrets.DOCKER_USERNAME }}/doa-cw1:prod
+          sleep 5
+          curl -s http://localhost:5000 | grep "Hello, World!"
+          echo "Production image runs correctly"
+
+          docker rm -f test-prod
